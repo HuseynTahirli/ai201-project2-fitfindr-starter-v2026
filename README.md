@@ -13,8 +13,7 @@
 > python app.py ask 'vintage graphic tee under $30'
 > ```
 >
-> All three tools are stubs, so that last command will do nothing useful yet.
-> That's the starting position.
+> All three tools are built now, so that last command runs the full agent.
 >
 > **The rest of this file is your submission.** Fill it in as you go.
 
@@ -74,7 +73,7 @@ You tell FitFindr what you want in plain words, like "a vintage graphic tee unde
 
 **Where it lives:** `agent.py::run_agent`
 
-**How the query is parsed:** Plain regex and string splitting, no model call. A price comes from phrases like "under $30" or "$30 max". A size comes from "size M". Whatever is left, minus filler words like "looking for", "a" and "the", becomes the description.
+**How the query is parsed:** Plain regex and string splitting, no model call, in `agent.py::_parse_query`. A price comes from phrases like "under $30" or "max $30", or from any bare "$30" if no phrase matches. A size comes from "size M". Whatever text is left becomes the description. The parser does not strip filler words like "looking for", "a" and "the". `search_listings` ignores them when it scores keywords.
 
 **What moves through the session:** `query`, then `parsed`, then `search_results`, then `selected_item`, then `outfit_suggestion`, then `fit_card`. `error` is only set when the run stops early. Each tool reads its input back out of the session instead of taking the previous tool's return value directly.
 
