@@ -25,9 +25,7 @@ Given a query that matches at least one listing, the agent completes all three
 tool calls and returns a fit card — in at least 4 of 5 tries.
 
 **Why this target:**
-<!-- Why 4 of 5 and not 5 of 5? Something about your search, probably —
-     "my search is a plain keyword match and some phrasings will miss" is a
-     real answer. -->
+I picked 4 of 5 and not 5 of 5 because my search is a plain whole-word keyword match, so a phrasing like "t-shirt" will miss a listing titled "tee". Two of the three tools also call a model, and a model call can fail or time out once in a while.
 
 ---
 
@@ -37,66 +35,34 @@ Given a query that matches no listings, the agent stops before calling
 `suggest_outfit` and returns a message naming what to change — 5 of 5 tries.
 
 **Why this target:**
-<!-- Why is 5 of 5 reasonable here when criterion 1 isn't? What's different
-     about this path? -->
+I picked 5 of 5 here because this path never depends on the model. Search is plain code, so an impossible query gives an empty list every time, and the branch checks for it before anything else runs. If this ever misses, the loop is wrong, not unlucky.
 
 ---
 
-## 3. Something about state
+## 3. The item search found is the item the next tool gets
 
-<!-- YOU WRITE THIS ONE.
-
-     How would you know that the item your search found is the same item the
-     next tool received? Name something countable or observable.
-
-     This is the criterion people find hardest, because state failure doesn't
-     look like state failure — it looks like a tool problem. Something that
-     compares session["selected_item"] against what actually reached
-     suggest_outfit is the shape you're after. -->
-
-
+In every run that gets past the search, the id in `session["selected_item"]` matches the id of the item `suggest_outfit` was actually called with, checked by recording the argument at the call. 5 of 5 tries.
 
 **Why this target:**
-
-
+No model is involved in passing the item along. It is a dict going into the session and coming back out, so there is nothing random to blame. If this misses even once, it is a real bug in my loop and not noise, so I am not allowing a miss.
 
 ---
 
-## 4. Something about the fit card
+## 4. The fit card reads like a short post and has the facts
 
-<!-- YOU WRITE THIS ONE.
-
-     The fit card calls a model, so the same input can produce different words
-     each time. That's not a bug — it's the nature of the tool. So what would
-     make it acceptable?
-
-     Think about what you'd actually be unhappy to see. A caption that never
-     mentions the price? Two different items producing the same opening
-     sentence? A card longer than a caption anyone would post? Any of those can
-     be turned into a number. -->
-
-
+Run `create_fit_card` 5 times on the same item. At least 4 of the 5 captions are 2 to 4 sentences long and mention both the price and the platform.
 
 **Why this target:**
-
-
+The model words things differently every run, so I can't check exact words. Length, price and platform are things I can see just by looking. I picked 4 of 5 and not 5 of 5 because a model sometimes ignores an instruction, and counting sentences gets fuzzy with things like "$24." or exclamation marks.
 
 ---
 
-## 5. Your choice
+## 5. The price ceiling holds
 
-<!-- YOU WRITE THIS ONE TOO.
-
-     Pick something you actually care about getting right. Speed, the empty
-     wardrobe path, what happens when the model can't be reached, whether the
-     search respects a price ceiling — anything, as long as it names a number
-     or an observable outcome. -->
-
-
+For 5 different queries that each include a max price, every listing returned costs at most that price. 5 of 5 queries.
 
 **Why this target:**
-
-
+Price is a float in the data and the filter is a plain less-than-or-equal comparison, with no model and nothing fuzzy. If one listing over the ceiling gets through, it is a bug. The other risk is the query parser reading the number wrong from phrases like "under $30" or "$30 max", which is why I picked this one.
 
 ---
 
