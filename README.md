@@ -47,59 +47,38 @@
 
 ## Tool Inventory
 
-<!-- Four lines per tool. This is worth 2 points and it's the single most
-     common place students lose them.
-
-     "Returns a list" earns NOTHING. The description has to say what is IN
-     the list.
-
-     The empty case isn't optional either — it's the thing your loop branches
-     on, and if you don't decide it here you'll discover it as a crash in
-     Milestone 5. -->
-
 ### `search_listings`
 
-- **What it does:**
-- **Inputs:** <!-- name and type each: `max_price` (float), not "a price" -->
-- **Returns:**
-- **When it has nothing:**
+- **What it does:** Looks through the 40 listings for items that match a few keywords, and optionally a size and a price ceiling.
+- **Inputs:** `description` (str), `size` (str or None), `max_price` (float or None). A size or price of None means skip that filter.
+- **Returns:** A list of listing dicts, best match first, at most `config.SEARCH_RESULT_LIMIT` long. Each dict has `id`, `title`, `description`, `category`, `style_tags` (list), `size`, `condition`, `price` (float), `colors` (list), `brand` (str or None) and `platform`. Best match means the most query words found as whole words in the title, description and style tags. Ties go to the cheaper listing. Listings that match no words are dropped. The price filter is inclusive. The size filter splits the listing's size on spaces, slashes and parentheses and checks if the requested size is one of the pieces, ignoring case. So "M" matches `M`, `S/M` and `M/L`, "L" does not match `XL`, and "One Size", waist sizes and shoe sizes never match a letter size.
+- **When it has nothing:** An empty list `[]`. Never None and never an exception.
 
 ### `suggest_outfit`
 
-- **What it does:**
-- **Inputs:**
-- **Returns:**
-- **When it has nothing:**
+- **What it does:** Asks the model for one or two outfits built around the thrifted item, using the user's wardrobe when there is one.
+- **Inputs:** `new_item` (dict, one listing as returned by `search_listings`), `wardrobe` (dict with an `items` key holding a list of wardrobe item dicts).
+- **Returns:** A non-empty string with the outfit suggestions. When the wardrobe has items, the text names specific pieces the user already owns.
+- **When it has nothing:** If `wardrobe["items"]` is empty, it returns general styling advice for the item, still a non-empty string. It does not raise and it does not return an empty string.
 
 ### `create_fit_card`
 
-- **What it does:**
-- **Inputs:**
-- **Returns:**
-- **When it has nothing:**
+- **What it does:** Asks the model to write a short caption, like someone would post, about the find.
+- **Inputs:** `outfit` (str, the text from `suggest_outfit`), `new_item` (dict, the same listing).
+- **Returns:** A string of two to four sentences that mentions the item, its price and its platform once each. The wording changes from run to run.
+- **When it has nothing:** If `outfit` is empty or only whitespace, it returns a plain message saying there was no outfit to write about. It does not call the model and it does not raise.
 
 ---
 
 ## Planning Loop
 
-<!-- Your branch rule, stated as a rule — the condition AND both paths — plus
-     the file and function that holds it.
-
-     Like this:
-       "If search_listings returns an empty list, put a message in the session
-        and stop. Otherwise take the first result and go to suggest_outfit."
-        — agent.py::run_agent
-
-     The grader checks your code against what you claim here, so the file and
-     function have to be real. -->
-
-**Branch rule:**
+**Branch rule:** If `search_listings` returns an empty list, put a message in `session["error"]` that tells the user what to change (raise the price, drop the size, or use fewer keywords), leave `session["fit_card"]` as None, and stop. Otherwise take the first result, put it in `session["selected_item"]`, and go on to `suggest_outfit` and then `create_fit_card`.
 
 **Where it lives:** `agent.py::run_agent`
 
-**How the query is parsed:** <!-- regex, string splitting, or asking the model — say which -->
+**How the query is parsed:** Plain regex and string splitting, no model call. A price comes from phrases like "under $30" or "$30 max". A size comes from "size M". Whatever is left, minus filler words like "looking for", "a" and "the", becomes the description.
 
-**What moves through the session:** <!-- which fields, in what order -->
+**What moves through the session:** `query`, then `parsed`, then `search_results`, then `selected_item`, then `outfit_suggestion`, then `fit_card`. `error` is only set when the run stops early. Each tool reads its input back out of the session instead of taking the previous tool's return value directly.
 
 ---
 
