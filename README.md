@@ -39,9 +39,7 @@
 
 ## What This Does
 
-<!-- Three or four sentences: what a user asks for, and what they get back. -->
-
-
+You tell FitFindr what you want in plain words, like "a vintage graphic tee under $30, size M". It searches 40 sample listings, picks the best match, suggests one or two outfits using the wardrobe you give it, and writes a short caption you could actually post. If nothing matches, it stops early and tells you what to change instead of making something up.
 
 ---
 
@@ -92,49 +90,56 @@
 **One full query**
 
 ```
-$ python app.py ask '...'
+$ python app.py ask 'vintage graphic tee under $30'
+Found:    Y2K Baby Tee — Butterfly Print — $18.0 on depop
 
+  Outfit:   Buy it. At eighteen dollars, it is a versatile Y2K staple that balances your closet. 
+
+Outfit one: Pair the butterfly baby tee with your baggy straight-leg dark wash jeans. Add the black cropped zip hoodie layered open on top, and finish with your chunky white sneakers and black crossbody bag for an effortless streetwear contrast. 
+
+Outfit two: Tuck the tee into your wide-leg khaki trousers. Layer the vintage black denim jacket over your shoulders, wear the brown leather belt to tie in the earth tones, and step into your black combat boots to grunge up the sweet butterfly print. Both looks lean into your existing pieces while letting the tee pop.
+
+  Fit card: Manifesting warm weather with this little Y2K butterfly tee. It is giving sweet fairy vibes balanced out with total everyday wearability, and it can be yours on Depop for just 18 dollars. Style it with baggy denim and a zip hoodie or tuck it into trousers for the ultimate early 2000s moment.
+
+0 model calls this session, 2 served from cache
 ```
 
 **The three tools, tested one at a time**
 
 ```
-$ python -c "from tools import search_listings; print(search_listings('graphic tee', max_price=30))"
-
+$ python -c "from tools import search_listings; print(search_listings('graphic tee', size='M', max_price=30))"
+[{'id': 'lst_017', 'title': 'Mesh Long-Sleeve Top — Black', 'description': 'Sheer black mesh long-sleeve. Great for layering under a graphic tee or over a bralette. Stretchy material, fits true to size.', 'category': 'tops', 'style_tags': ['y2k', 'grunge', 'goth', 'layering'], 'size': 'S/M', 'condition': 'excellent', 'price': 15.0, 'colors': ['black'], 'brand': None, 'platform': 'depop'}, {'id': 'lst_002', 'title': 'Y2K Baby Tee — Butterfly Print', 'description': 'Super cute early 2000s baby tee with butterfly graphic. Fitted crop length. Tag says medium but fits like a small.', 'category': 'tops', 'style_tags': ['y2k', 'vintage', 'graphic tee', 'cottagecore'], 'size': 'S/M', 'condition': 'excellent', 'price': 18.0, 'colors': ['white', 'pink', 'purple'], 'brand': None, 'platform': 'depop'}]
 ```
 
 ```
-$ python -c "from tools import suggest_outfit; ..."
+$ python -c "from tools import suggest_outfit, search_listings; from utils.data_loader import get_example_wardrobe; item = search_listings('graphic tee', size='M', max_price=30)[0]; print(suggest_outfit(item, get_example_wardrobe()))"
+Buy it. Fifteen dollars is a great price for a versatile layering piece in excellent condition.
 
+Outfit one: Grunge streetwear. Layer the mesh top underneath your white ribbed tank top, paired with your baggy straight-leg dark wash jeans. Finish with your black combat boots and black crossbody bag for a textured, 2000s-inspired look.
+
+Outfit two: Edgy minimal. Wear the mesh top under your oversized grey crewneck sweatshirt so the sheer sleeves peek out at the wrists, paired with your wide-leg khaki trousers. Add your chunky white sneakers and the black crossbody bag for contrast.
 ```
 
 ```
-$ python -c "from tools import create_fit_card; ..."
-
+$ python -c "from tools import create_fit_card; from utils.data_loader import load_listings; print(create_fit_card('jeans and white sneakers', load_listings()[0]))"
+Nothing beats a broken-in pair of vintage Levi's 501s with your favorite white sneakers for that effortless 90s off-duty look. These have the absolute best medium wash and sit just right on the waist. Grab them for thirty eight dollars over on my depop before someone else snags your new favorite denim.
 ```
 
 ---
 
 ## How I Used AI
 
-<!-- Two specific moments. What you asked, what came back, what you changed.
-
-     "I used Claude to help me code" is not enough.
-
-     "I gave Claude my search_listings spec. It returned None on no match
-     instead of an empty list, so I changed it" is the level we want. -->
-
 **Moment 1**
 
-- *What I asked for:*
-- *What came back:*
-- *What I changed:*
+- *What I asked for:* I searched the data file for every size in the 40 listings and gave Claude that list, then asked it to build `search_listings` from my spec.
+- *What came back:* A size filter that splits the listing's size on spaces, slashes and parentheses and checks if the requested size is one of the pieces. The data has sizes like `S/M`, `XL (oversized)`, `W28` and `US 8.5`, and a plain substring check would match the L in XL.
+- *What I changed:* I kept that approach and wrote the exact rule into the Tool Inventory so the spec and the code say the same thing. I tested it with `graphic tee`, size M, under $30. It returned two `S/M` listings and left out the L bootleg tee.
 
 **Moment 2**
 
-- *What I asked for:*
-- *What came back:*
-- *What I changed:*
+- *What I asked for:* I asked Claude to build `create_fit_card`, then ran it three times on the same item to check that the captions differ.
+- *What came back:* Three word-for-word identical captions, even though `TEMPERATURE` in `config.py` was already 0.9.
+- *What I changed:* The cause was `CACHE_ENABLED`, which reuses an answer to an identical prompt. I turned the cache off for that one test by setting `AI201_CACHE` to 0 and the three captions came out different. I did not change any tool code. The cache stays on while I build.
 
 <!-- ═══════════════════════ UNIT 4 — THE TEST ═══════════════════════
 
