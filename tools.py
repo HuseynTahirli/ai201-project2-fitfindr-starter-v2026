@@ -163,7 +163,9 @@ def create_fit_card(outfit: str, new_item: dict) -> str:
         f"{_describe_item(new_item)}\n\n"
         f"The outfit idea:\n{outfit}\n\n"
         "Rules: two to four sentences. Mention the item, its price and the "
-        "platform once each. Be specific about the vibe. Plain text, no "
-        "markdown, no hashtag pile."
+        "platform once each. Write the price as digits with a dollar sign, "
+        "like $18, never spelled out as words. Name the platform by name. "
+        "Be specific about the vibe. Plain text, no markdown, no hashtag "
+        "pile."
     )
     return generate(prompt, system=system)
