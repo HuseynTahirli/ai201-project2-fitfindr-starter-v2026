@@ -318,11 +318,29 @@ is MET at 5 of 5 queries.
 
 | # | Criterion | Target | Verdict | How I decided |
 |---|---|---|---|---|
-| 1 |  |  |  |  |
-| 2 |  |  |  |  |
-| 3 |  |  |  |  |
-| 4 |  |  |  |  |
-| 5 |  |  |  |  |
+| 1 | Matching query completes all three tools | 4 of 5 | MET (5/5) | Read the trace for each try in `matching query completes`. All 5 showed the search, suggest_outfit and create_fit_card steps and a non-null fit card. |
+| 2 | Impossible query stops before the second tool | 5 of 5 | MET (5/5) | Read the trace for each try in `impossible query stops early`. All 5 stopped after the empty search step, before suggest_outfit, with a message naming what to change. |
+| 3 | Selected item matches what suggest_outfit gets | 5 of 5 | MET (5/5) | Compared `session["selected_item"]` to the suggest_outfit trace input by title, price and platform for all 5 tries, and read the two agent.py lines that make it the same object. |
+| 4 | Fit card reads like a short post and has the facts | 4 of 5 | MET (5/5) | All 5 fit cards in `fit card reads like a short post` were 2 to 4 sentences, named the price in some form and named the platform. |
+| 5 | The price ceiling holds | 5 of 5 queries | MET (5/5) | `check_ceiling.py` ran all 5 queries straight against search_listings, no model, and printed every returned listing's price. None went over its ceiling. |
+
+I am being honest about this: all 5 criteria came back MET, none missed, which means my unit 3 targets were too easy. I set them low enough that I could not fail even on the parts of the loop that depend on the model, where I expected some real variance.
+
+**Where I would tighten a target:**
+
+Criterion 4 is the one I would tighten first. I wrote the target as "at least 4 of the 5 captions," expecting the model to sometimes skip the price or the platform or run long. Instead all 5 of 5 captions hit the length and both facts, and I counted the full run: of 45 fit cards produced across every scenario in the before run, 11 wrote the price as digits with a dollar sign like $18, and 34 spelled it out, as "eighteen dollars" or "18 dollars." All 45 named the platform. The target let spelled-out prices count as a pass, so it never caught how inconsistent the price format actually is. I would tighten criterion 4 to require the price written as $N, digits and a dollar sign, and the platform named, in every card, 5 of 5, not 4 of 5.
+
+Criterion 1 at "4 of 5" was also low. I picked that number expecting occasional model failures on the outfit or caption call, but across the whole before run every matching query that reached the model completed all three tools. 4 of 5 gave myself a miss I never used.
+
+**Gaps I found and closed, not misses:**
+
+Criterion 3's target was already met, but the way I was checking it had a gap. The trace and session only show title, price and platform, not the listing's `id` field the criterion names. I read the two relevant lines in `agent.py::run_agent` and confirmed `session["selected_item"]` is the whole listing dict, id included, and that the same dict object, not a copy, gets passed into `suggest_outfit`. That closes the gap by reading the code, since the id itself is never printed anywhere in the log.
+
+Criterion 5's target was also already met, but the trace line for each query only prints the first 3 titles of the result list and never shows every returned listing's price, so it could not prove the ceiling held for a full result set. I wrote `check_ceiling.py` to call `search_listings()` directly for the same 5 queries, print every result's id, title and price, and check each against its max_price. All 5 queries passed with no exceptions, and now I have real evidence instead of a trace that just doesn't show enough.
+
+**One observation, not a miss:**
+
+Reading the trace, `search_listings` sometimes returns loosely related items, for example a bucket hat and a silk slip dress show up in the results for "90s track jacket." The keyword scoring in `tools.py` pulls in anything that shares even one non-filler word with the query, including things that are not jackets at all. This never changed an outcome in this run, because the right item ranked first every time and that is the one `session["selected_item"]` picked up, but it is worth watching if a future query's best match is not the first thing a person would pick.
 
 **Diagnoses**
 
