@@ -140,6 +140,30 @@ Nothing beats a broken-in pair of vintage Levi's 501s with your favorite white s
 - *What came back:* Three word-for-word identical captions, even though `TEMPERATURE` in `config.py` was already 0.9.
 - *What I changed:* The cause was `CACHE_ENABLED`, which reuses an answer to an identical prompt. I turned the cache off for that one test by setting `AI201_CACHE` to 0 and the three captions came out different. I did not change any tool code. The cache stays on while I build.
 
+**Moment 3**
+
+- *What I asked for:* I had Claude Code score criterion 5 against the before run log, strictly.
+- *What came back:* It first marked criterion 5 FAIL, because the trace only prints the first 3
+  titles of each result list and never shows every listing's price, so there was no way to prove
+  the ceiling held for a whole result set from that log alone.
+- *What I changed:* I decided missing evidence is not the same thing as a real failure. Instead of
+  accepting the FAIL or just assuming it was fine, I had it write `check_ceiling.py`, a small
+  script that calls `search_listings()` directly, no model, for the same 5 queries, and prints
+  every returned listing's id, title and price. It came back 5 of 5, every listing under its
+  ceiling, so I changed the verdict to MET on real evidence instead of a guess either way.
+
+**Moment 4**
+
+- *What I asked for:* Nothing, this one was me catching myself. I was looking at the
+  "vintage denim jacket under $40" search and got suspicious, because high-waisted denim cutoff
+  shorts ranked first instead of a jacket.
+- *What came back:* I checked the actual listing data instead of assuming the search was broken.
+  The jacket in the data costs $42, which is over the $40 ceiling, so the search was right to drop
+  it and rank the shorts first, since the shorts fit the price and still matched on "denim."
+- *What I changed:* Nothing in the code. I almost treated this as a bug and nearly used it as my
+  one improvement, but it was the price filter doing exactly what it is supposed to do. I used the
+  fit card price format instead, since that one was a real, measured problem.
+
 <!-- ═══════════════════════ UNIT 4 — THE TEST ═══════════════════════
 
      Don't fill these in during unit 3.
@@ -390,33 +414,133 @@ full. -->
 
 **What I changed:**
 
-**Which failure it was meant to fix:**
+I changed the `create_fit_card` prompt in `tools.py`, nothing else. Before:
+
+```
+"Rules: two to four sentences. Mention the item, its price and the "
+"platform once each. Be specific about the vibe. Plain text, no "
+"markdown, no hashtag pile."
+```
+
+After:
+
+```
+"Rules: two to four sentences. Mention the item, its price and the "
+"platform once each. Write the price as digits with a dollar sign, "
+"like $18, never spelled out as words. Name the platform by name. "
+"Be specific about the vibe. Plain text, no markdown, no hashtag "
+"pile."
+```
+
+**Why I picked this:** going back through the before run, 34 of the 45 fit cards it produced spelled the price out as words, like "eighteen dollars" or "18 dollars," and only 11 wrote it as $N digits. Every card still named the platform, so that half of criterion 4 was never the problem. The old prompt just said "mention the price" and left the format up to the model, so the model did whatever sounded more natural in the sentence, which was usually words. I did not touch `agent.py`, `mcp_server.py`, `scenarios.py` or the loop. This is a model instruction, not a code fix, since the price format lives in text the model writes, not in a calculation anywhere in the loop.
+
+**Which failure it was meant to fix:** criterion 4 never technically failed at its target of 4 of 5, but I was tightening it to 5 of 5 with the price written as $N specifically, and the old prompt would not have hit that stricter bar.
+
+**Price format, before vs after, counted across all 45 fit cards in each run:**
+
+| | Price as $N digits | Price spelled out | No price at all | Platform named |
+|---|---|---|---|---|
+| Before | 11 of 45 | 34 of 45 | 0 of 45 | 45 of 45 |
+| After | 45 of 45 | 0 of 45 | 0 of 45 | 45 of 45 |
 
 ### Run Log — After
 
 | Criterion | Target | Try 1 | Try 2 | Try 3 | Try 4 | Try 5 | Verdict |
 |---|---|---|---|---|---|---|---|
-| 1.  |  |  |  |  |  |  |  |
-| 2.  |  |  |  |  |  |  |  |
-| 3.  |  |  |  |  |  |  |  |
-| 4.  |  |  |  |  |  |  |  |
-| 5.  |  |  |  |  |  |  |  |
+| 1. Matching query completes all three tools | 4 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 2. Impossible query stops before the second tool | 5 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 3. Selected item matches what suggest_outfit gets | 5 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5)* |
+| 4. Fit card reads like a short post and has the facts | 4 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 5. The price ceiling holds | 5 of 5 queries | PASS | PASS | PASS | PASS | PASS | MET (5/5)** |
+
+\* Same caveat as the before run. Title, price and platform match between `session["selected_item"]`
+and the `suggest_outfit` call for all 5 tries, but that is not a literal `id` field.
+
+\*\* Search is plain code, no model, and I did not touch `tools.py::search_listings` or the data,
+so the same 5 queries return the exact same listings as the before run. I did not rerun
+`check_ceiling.py` for this, I confirmed from the after log that each query's selected item
+(the first, cheapest-ranked result) is still at or under its max_price, same as before, and that
+check_ceiling.py's earlier full result still applies since nothing underneath it changed.
+
+**Real output, one try per criterion, named by file and function:**
+
+Criterion 1, Try 1 (`tools.py::create_fit_card`, via `agent.py::run_agent`, captured by `run_eval.py::run_once`):
+
+```
+This dreamy little butterfly baby tee is giving major early 2000s mall goth energy. I am asking $18 for it and it is currently listed on Depop. Grab it before I change my mind and keep it for myself.
+```
+
+Criterion 2, Try 1 (`agent.py::run_agent`, the empty-search branch, trace via `trace.step()`):
+
+```
+[2] empty search
+      in:  description='designer ballgown', size='XXS', max_price=5.0
+      out: Nothing matched 'designer ballgown'. Try to raise your price limit above $5, or drop size XXS or try a nearby …
+      →    branch: empty, stopping
+```
+
+Criterion 3, Try 1 (`agent.py::run_agent`, session vs. trace input):
+
+```
+- selected_item: Y2K Baby Tee — Butterfly Print ($18.0, depop)
+
+[2] suggest_outfit
+      in:  Y2K Baby Tee — Butterfly Print ($18.0, depop)
+```
+
+Criterion 4, Try 1 (`tools.py::create_fit_card`, captured by `run_eval.py::run_once`):
+
+```
+Found this pastel butterfly baby tee thrifting and honestly need to keep it for myself. It gives major Y2K mall rat energy and is super easy to style with baggy denim or wide-leg trousers. Grab it on Depop for $18 before I change my mind.
+```
+
+Criterion 5, Try 1 (`agent.py::run_agent`, session, `price ceiling — silk slip dress`):
+
+```
+- selected_item: 90s Silk Slip Dress — Floral, Midi Length ($30.0, depop)
+```
+This item's $30 price is under its $40 ceiling. `check_ceiling.py` already confirmed every other
+listing in this query's result set is $30 or less too.
 
 **Did it help, and how do I know:**
 
-<!-- If it made things worse, say that. Honestly reported, that earns full
-     credit and is more interesting than one that worked. -->
-
+Yes, it helped, and I know because I counted every fit card in the after run by hand the same way I counted the before run: 45 of 45 cards now write the price as $N digits, up from 11 of 45 before, and 0 of 45 spell it out, down from 34 of 45. Platform naming did not need fixing and stayed at 45 of 45 in both runs. I did not find a single card in the after run that still spelled out the price or dropped it entirely, so there is nothing to walk back here. I am being honest that this was a one-dimensional fix on a criterion that was already passing. It did not change whether criterion 4 was MET, it made the MET harder to argue with.
 
 
 ---
 
 ## What's Still Broken
 
-<!-- For each criterion still missed: what you'd do, and why you stopped where
-     you did. "I ran out of time" is fine if it's true. Pretending nothing is
-     left is not. -->
+No criterion is missed right now, all 5 came back MET in both the before and after run, so there
+is nothing here that is a failing number. There is still real stuff left unfixed though.
 
+**search_listings pulls in loosely related items.** Reading the trace, a query like "90s track
+jacket" returns a bucket hat and a silk slip dress in its result list, because the keyword scoring
+in `tools.py::search_listings` counts any shared non-filler word, and style tags like "90s" or
+"vintage" show up on all kinds of unrelated listings. I would tighten this by requiring more of
+the query's words to match, not just one, so a bucket hat sharing only the word "90s" with the
+query would not make the cut. I stopped here and used the fit card price format as my one
+improvement instead, because this never actually changed an outcome. The right item ranked first
+in every single try across both runs, since the scoring sorts by match count and then by price,
+and `session["selected_item"]` always takes the first result. So the loose matches sit lower in
+the list where nothing in the loop ever reads them. The unit allows one change and I picked the
+one that was actually causing a measurable problem.
+
+**Criterion 3 is verified by reading code, not by output.** The trace and the run log never print
+a listing's `id` field anywhere, only title, price and platform. I confirmed `session["selected_item"]`
+and the input to `suggest_outfit` are the same object by reading the two lines in
+`agent.py::run_agent` that do it, not by seeing an id printed and compared. That is a real gap in
+what the trace shows, not in what the code does. If I wanted this criterion machine checkable
+without reading code every time, I would add the id to the trace step's input, since right now
+nobody rerunning this later can confirm it from the log alone.
+
+**The fit card price fix is a model instruction, not a code rule.** `create_fit_card`'s new prompt
+tells the model to write the price as $N and it did so in all 45 cards in the after run, but
+nothing in `tools.py` checks or corrects the model's output if it ignores that instruction on some
+future run. The before run showed the model will drift toward spelling things out when the prompt
+does not say otherwise, so I would not be surprised if a different temperature or a different item
+produced a spelled-out price again. If I wanted this enforced for real, I would check the string
+for a `$` pattern after `generate()` returns and only then would I trust it unconditionally.
 
 
 <!-- ═════════════════════════════════════════════════════════════════════
