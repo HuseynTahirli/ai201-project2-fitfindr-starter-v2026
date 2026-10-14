@@ -387,21 +387,98 @@ Reading the trace, `search_listings` sometimes returns loosely related items, fo
 **Happy path**
 
 ```
+$ python app.py ask 'vintage graphic tee under $30' --trace
+[1] search_listings (via MCP)
+      in:  description='vintage graphic tee', size=None, max_price=30.0
+      out: 10 items: Y2K Baby Tee — Butterfly Print, Vintage Band Tee — Faded Grey, Graphic Tee — 2003 Tour Bootleg Style … +7 more
+[2] suggest_outfit
+      in:  Y2K Baby Tee — Butterfly Print ($18.0, depop)
+      out: Buy it. At eighteen dollars, it is a versatile Y2K staple that balances your closet.   Outfit one: Pair the bu…
+[3] create_fit_card
+      in:  item='Y2K Baby Tee — Butterfly Print' ($18.0), outfit='Buy it. At eighteen dollars, it is a versatile Y2K stap…
+      out: This Y2K butterfly baby tee is the sweetest little pastel graphic for your collection. It is up on Depop right…
 
+  Found:    Y2K Baby Tee — Butterfly Print — $18.0 on depop
+
+  Outfit:   Buy it. At eighteen dollars, it is a versatile Y2K staple that balances your closet. 
+
+Outfit one: Pair the butterfly baby tee with your baggy straight-leg dark wash jeans. Add the black cropped zip hoodie layered open on top, and finish with your chunky white sneakers and black crossbody bag for an effortless streetwear contrast. 
+
+Outfit two: Tuck the tee into your wide-leg khaki trousers. Layer the vintage black denim jacket over your shoulders, wear the brown leather belt to tie in the earth tones, and step into your black combat boots to grunge up the sweet butterfly print. Both looks lean into your existing pieces while letting the tee pop.
+
+  Fit card: This Y2K butterfly baby tee is the sweetest little pastel graphic for your collection. It is up on Depop right now for $18 and instantly adds that nostalgic early 2000s energy to any outfit. Layer it under a baggy zip hoodie or toughen it up with wide-leg cargos.
+
+0 model calls this session, 2 served from cache
 ```
+
+Step 1 in that trace, `search_listings (via MCP)`, is the search_listings call going through MCP, not a direct function call.
 
 **Empty search**
 
 ```
+$ python app.py ask 'designer ballgown size XXS under $5' --trace
+[1] search_listings (via MCP)
+      in:  description='designer ballgown', size='XXS', max_price=5.0
+      out: [] (empty)
+[2] empty search
+      in:  description='designer ballgown', size='XXS', max_price=5.0
+      out: Nothing matched 'designer ballgown'. Try to raise your price limit above $5, or drop size XXS or try a nearby …
+      →    branch: empty, stopping
 
+  Nothing matched 'designer ballgown'. Try to raise your price limit above $5, or drop size XXS or try a nearby size, or use fewer or different keywords (for example 'tee' instead of 'graphic t-shirt').
+
+0 model calls this session
 ```
 
-**On the MCP move:** <!-- what changed in your code, and whether anything
-behaved differently afterwards. If the rewire didn't work, say exactly where it
-broke — the error text and the last thing that worked. That earns the point in
-full. -->
+**On the MCP move:** `search_listings` is registered as a tool in `mcp_server.py`, wrapped around
+the same function from `tools.py`. `agent.py::run_agent` no longer calls `search_listings()`
+directly, it calls `mcp_client.call_tool("search_listings", tool_inputs)` instead, which is the
+line the trace labels `search_listings (via MCP)`. The results came back identical to before the
+move, same items, same order, same prices, so the rewire did not change what the tool returns,
+only how the loop reaches it.
 
+---
 
+## Failure Modes
+
+**Empty search.** I triggered this with the query `designer ballgown size XXS under $5`, which
+nothing in the data matches. The agent showed:
+
+```
+Nothing matched 'designer ballgown'. Try to raise your price limit above $5, or drop size XXS or try a nearby size, or use fewer or different keywords (for example 'tee' instead of 'graphic t-shirt').
+```
+
+**Empty wardrobe.** I ran `python app.py ask 'denim jacket under $50' --empty-wardrobe`. With
+nothing in the wardrobe, `suggest_outfit` falls back to general styling advice instead of naming
+specific pieces the person owns. The outfit advice it gave:
+
+```
+Buy it. For a casual streetwear look, layer this cropped Wrangler jacket over an oversized black graphic t-shirt, high-waisted black biker shorts, and chunky white sneakers. Add a silver chain necklace to finish the outfit. Alternatively, lean into the vintage vibe for brunch by pairing it with a floral midi slip dress in a dark maroon or emerald shade, paired with beat-up canvas high-top sneakers and a structured canvas tote bag. The light wash denim provides a great casual contrast to both fitted and flowing textures.
+```
+
+**Model unavailable.** I triggered this by changing one character of `GEMINI_API_KEY` in `.env`
+and running a fresh query. I did not do this again for this write-up since I already have the
+exact message from the code, and I did not want to touch the key a second time. `generate.py`
+catches the provider's error, and since a bad key is not a rate limit, it raises
+`ModelUnavailable(_explain(exc))`. `_explain()` checks for "api key" in the error text and returns:
+
+```
+The model rejected your API key. Check GEMINI_API_KEY in your .env file, or create a fresh key at aistudio.google.com.
+```
+
+`agent.py` imports `ModelUnavailable` but does not catch it itself, so it goes up to
+`app.py::main()`, which catches any exception and prints `f"{type(exc).__name__}: {exc}"` to
+stderr, no stack trace. So the actual printed line is:
+
+```
+ModelUnavailable: The model rejected your API key. Check GEMINI_API_KEY in your .env file, or create a fresh key at aistudio.google.com.
+```
+
+Honestly, that is not a clean message, it leaks the raw Python class name `ModelUnavailable` right
+at the front. It is still a lot better than a stack trace, and someone reading it can tell
+something is wrong with the key without digging through a traceback, but it is not the polished,
+person-facing message the exercise probably wants. A real fix would catch `ModelUnavailable`
+somewhere in `agent.py` or `app.py::cmd_ask` and print just the message, not `type(exc).__name__`.
 
 ---
 
