@@ -164,17 +164,20 @@ Nothing beats a broken-in pair of vintage Levi's 501s with your favorite white s
 | 2. Impossible query stops before the second tool | 5 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
 | 3. Selected item matches what suggest_outfit gets | 5 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5)* |
 | 4. Fit card reads like a short post and has the facts | 4 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
-| 5. The price ceiling holds | 5 of 5 queries | FAIL | FAIL | FAIL | FAIL | FAIL | MISSED (0/5 confirmed) |
+| 5. The price ceiling holds | 5 of 5 queries | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
 
-\* The log shows title, price and platform matching between `session["selected_item"]` and the
-`suggest_outfit` call, not a literal `id` field. I'm counting that as a pass since no two listings
-in this run shared a title, price and platform, but the criterion as worded asks for an id check
-that the trace doesn't actually record.
+\* I checked `session["selected_item"]` against the input to `suggest_outfit` by title, price and
+platform, since that is all the trace records. I wrote a one line check straight after this table
+on exactly what that does and does not prove about `id`.
 
 For criterion 5, "Try 1" through "Try 5" are the 5 different queries the criterion asks for
 (`silk slip dress`, `platform sneakers`, `track jacket`, `leather jacket`, `band tee`), not 5
 repeats of one query — search is plain code with no model involved, so repeating one query would
-not have told me anything new.
+not have told me anything new. I first marked this row FAIL because the trace only prints the
+first 3 titles of each result list, not every listing's price. I wrote `check_ceiling.py` to call
+`search_listings()` directly for these same 5 queries and print every returned listing's id, title
+and price. Its output is pasted below the table. All 5 queries pass with no exceptions, so I am
+changing this row to MET.
 
 **Real output from one try per criterion**, pasted as text, naming the file and function
 that produced it. The trace lines come from `trace.step()` calls inside `agent.py::run_agent`;
@@ -218,6 +221,16 @@ Criterion 3 — `selected item matches what suggest_outfit gets`, Try 1 (`agent.
       in:  Y2K Baby Tee — Butterfly Print ($18.0, depop)
 ```
 
+On criterion 3, what I checked and what I did not: in `agent.py::run_agent`, line 178 sets
+`session["selected_item"] = session["search_results"][0]`, which stores the whole listing dict,
+id field included, not a separately pulled out id. Line 181 then calls
+`suggest_outfit(session["selected_item"], session["wardrobe"])`, passing that exact same dict
+object straight through, so the id going into `suggest_outfit` is not just equal, it is the same
+object in memory as `session["selected_item"]`. I read these two lines and did not change them. I
+did not independently print the `id` field anywhere in the trace or the run log, so my PASS marks
+above rest on title, price and platform matching, plus this read of the code, not on an id value
+I actually saw printed.
+
 Criterion 4 — `fit card reads like a short post`, Try 1 (`tools.py::create_fit_card`, captured by `run_eval.py::run_once`):
 
 ```
@@ -231,6 +244,57 @@ Criterion 5 — `price ceiling — silk slip dress`, Try 1 (`agent.py::run_agent
       in:  description='silk slip dress in midi length', size=None, max_price=40.0
       out: 5 items: 90s Silk Slip Dress — Floral, Midi Length, Y2K Baby Tee — Butterfly Print, High-Waisted Denim Shorts — Cutoff … +2 more
 ```
+
+The trace line above only shows the first 3 titles of the result list and does not show every
+listing's price, so it cannot prove the ceiling holds for a whole result set by itself. I wrote
+`check_ceiling.py`, which calls `search_listings()` directly, no model involved, for the same 5
+queries the trace showed above, and prints every returned listing's id, title and price. Full
+output from `python check_ceiling.py`, labeled `check_ceiling.py`:
+
+```
+query: description='silk slip dress in midi length', size=None, max_price=40.0
+  id=lst_013  price=$30.0  title=90s Silk Slip Dress — Floral, Midi Length
+  id=lst_002  price=$18.0  title=Y2K Baby Tee — Butterfly Print
+  id=lst_016  price=$24.0  title=High-Waisted Denim Shorts — Cutoff
+  id=lst_029  price=$28.0  title=Silk Button-Down — Sage Green
+  id=lst_037  price=$30.0  title=Straight Leg Black Jeans — Faded
+  PASS
+
+query: description='platform sneakers', size=None, max_price=60.0
+  id=lst_019  price=$48.0  title=Platform Sneakers — White Chunky Sole
+  id=lst_035  price=$20.0  title=Low-Top Canvas Sneakers — Off-White
+  id=lst_009  price=$55.0  title=Platform Mary Janes — Black Patent
+  PASS
+
+query: description='90s track jacket', size=None, max_price=45.0
+  id=lst_004  price=$45.0  title=90s Track Jacket — Navy/White Stripe
+  id=lst_034  price=$14.0  title=Bucket Hat — Reversible, Brown Plaid
+  id=lst_013  price=$30.0  title=90s Silk Slip Dress — Floral, Midi Length
+  id=lst_032  price=$33.0  title=Shacket — Olive Canvas
+  id=lst_031  price=$36.0  title=Baggy Carpenter Jeans — Dark Wash
+  id=lst_010  price=$40.0  title=Vintage Windbreaker — Color Block Purple/Teal
+  id=lst_007  price=$42.0  title=Denim Jacket — Light Wash, Cropped
+  PASS
+
+query: description='leather jacket', size=None, max_price=100.0
+  id=lst_022  price=$75.0  title=90s Leather Bomber — Black
+  id=lst_014  price=$12.0  title=Leather Belt — Brown, Braided
+  id=lst_032  price=$33.0  title=Shacket — Olive Canvas
+  id=lst_039  price=$38.0  title=Mini Shoulder Bag — Tan Leather
+  id=lst_007  price=$42.0  title=Denim Jacket — Light Wash, Cropped
+  id=lst_004  price=$45.0  title=90s Track Jacket — Navy/White Stripe
+  id=lst_009  price=$55.0  title=Platform Mary Janes — Black Patent
+  PASS
+
+query: description='band tee', size=None, max_price=20.0
+  id=lst_033  price=$19.0  title=Vintage Band Tee — Faded Grey
+  id=lst_017  price=$15.0  title=Mesh Long-Sleeve Top — Black
+  id=lst_002  price=$18.0  title=Y2K Baby Tee — Butterfly Print
+  PASS
+```
+
+Every listing in every one of the 5 queries comes back at or under its max_price, so criterion 5
+is MET at 5 of 5 queries.
 
 ---
 
