@@ -160,17 +160,76 @@ Nothing beats a broken-in pair of vintage Levi's 501s with your favorite white s
 
 | Criterion | Target | Try 1 | Try 2 | Try 3 | Try 4 | Try 5 | Verdict |
 |---|---|---|---|---|---|---|---|
-| 1.  |  |  |  |  |  |  |  |
-| 2.  |  |  |  |  |  |  |  |
-| 3.  |  |  |  |  |  |  |  |
-| 4.  |  |  |  |  |  |  |  |
-| 5.  |  |  |  |  |  |  |  |
+| 1. Matching query completes all three tools | 4 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 2. Impossible query stops before the second tool | 5 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 3. Selected item matches what suggest_outfit gets | 5 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5)* |
+| 4. Fit card reads like a short post and has the facts | 4 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 5. The price ceiling holds | 5 of 5 queries | FAIL | FAIL | FAIL | FAIL | FAIL | MISSED (0/5 confirmed) |
 
-**Real output from one try**, pasted as text, naming the file and function
-that produced it:
+\* The log shows title, price and platform matching between `session["selected_item"]` and the
+`suggest_outfit` call, not a literal `id` field. I'm counting that as a pass since no two listings
+in this run shared a title, price and platform, but the criterion as worded asks for an id check
+that the trace doesn't actually record.
+
+For criterion 5, "Try 1" through "Try 5" are the 5 different queries the criterion asks for
+(`silk slip dress`, `platform sneakers`, `track jacket`, `leather jacket`, `band tee`), not 5
+repeats of one query — search is plain code with no model involved, so repeating one query would
+not have told me anything new.
+
+**Real output from one try per criterion**, pasted as text, naming the file and function
+that produced it. The trace lines come from `trace.step()` calls inside `agent.py::run_agent`;
+the session fields and fit card/outfit text come from the same run, captured by
+`run_eval.py::run_once`.
+
+Criterion 1 — `matching query completes`, Try 1 (`agent.py::run_agent`, trace via `trace.step()`):
 
 ```
+[1] search_listings (via MCP)
+      in:  description='vintage graphic tee', size=None, max_price=30.0
+      out: 10 items: Y2K Baby Tee — Butterfly Print, Vintage Band Tee — Faded Grey, Graphic Tee — 2003 Tour Bootleg Style … +7 more
+[2] suggest_outfit
+      in:  Y2K Baby Tee — Butterfly Print ($18.0, depop)
+      out: Buy it. At eighteen dollars, it is a versatile Y2K staple.   Outfit one leans into vintage streetwear contrast…
+[3] create_fit_card
+      in:  item='Y2K Baby Tee — Butterfly Print' ($18.0), outfit='Buy it. At eighteen dollars, it is a versatile Y2K stap…
+      out: Found the ultimate Y2K baby tee with the cutest pastel butterfly print for just eighteen dollars on depop. It …
+```
 
+Criterion 2 — `impossible query stops early`, Try 1 (`agent.py::run_agent`, the empty-search branch):
+
+```
+- stopped early: yes — Nothing matched 'designer ballgown'. Try to raise your price limit above $5, or drop size XXS or try a nearby size, or use fewer or different keywords (for example 'tee' instead of 'graphic t-shirt').
+
+[1] search_listings (via MCP)
+      in:  description='designer ballgown', size='XXS', max_price=5.0
+      out: [] (empty)
+[2] empty search
+      in:  description='designer ballgown', size='XXS', max_price=5.0
+      out: Nothing matched 'designer ballgown'. Try to raise your price limit above $5, or drop size XXS or try a nearby …
+      →    branch: empty, stopping
+```
+
+Criterion 3 — `selected item matches what suggest_outfit gets`, Try 1 (`agent.py::run_agent`, session vs. trace input):
+
+```
+- selected_item: Y2K Baby Tee — Butterfly Print ($18.0, depop)
+
+[2] suggest_outfit
+      in:  Y2K Baby Tee — Butterfly Print ($18.0, depop)
+```
+
+Criterion 4 — `fit card reads like a short post`, Try 1 (`tools.py::create_fit_card`, captured by `run_eval.py::run_once`):
+
+```
+Live out your early 2000s pop star dreams in this pastel butterfly baby tee, priced at just $18 on Depop. Throw it on with baggy jeans and beat-up boots to nail that sweet-meets-edgy look. It is seriously the easiest way to add a little retro magic to your everyday rotation.
+```
+
+Criterion 5 — `price ceiling — silk slip dress`, Try 1 (`agent.py::run_agent`, trace via `trace.step()`):
+
+```
+[1] search_listings (via MCP)
+      in:  description='silk slip dress in midi length', size=None, max_price=40.0
+      out: 5 items: 90s Silk Slip Dress — Floral, Midi Length, Y2K Baby Tee — Butterfly Print, High-Waisted Denim Shorts — Cutoff … +2 more
 ```
 
 ---
