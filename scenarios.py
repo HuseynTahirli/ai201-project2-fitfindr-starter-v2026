@@ -35,18 +35,55 @@ SCENARIOS = [
         "wardrobe": "empty",
         "criterion": None,
     },
-    # TODO: add what your criteria 3, 4 and 5 need.
-    #
-    # Set "criterion" to the number in criteria.md that the scenario tests.
-    # "criterion": None means a diagnostic run — useful to have, but it isn't
-    # one of your five, and run_eval.py marks it as such in the table.
-    #
-    # For a state criterion, any normal query works — what you're checking is
-    # what ends up in the session, not what the user typed.
-    #
-    # For a fit-card criterion, you probably want the SAME query listed more
-    # than once, or several different items, depending on what your criterion
-    # actually says.
+    {
+        # A normal matching query. Criterion 3 — the item passed into
+        # suggest_outfit must be the same item session["selected_item"] holds.
+        "name": "selected item matches what suggest_outfit gets",
+        "query": "vintage graphic tee under $30",
+        "wardrobe": "example",
+        "criterion": 3,
+    },
+    {
+        # The same matching query, run_eval.py's 5 tries give us 5 fit cards
+        # on the same item (search is plain code, so the first result is
+        # deterministic). Criterion 4 — fit card length and facts.
+        "name": "fit card reads like a short post",
+        "query": "vintage graphic tee under $30",
+        "wardrobe": "example",
+        "criterion": 4,
+    },
+    # Criterion 5 needs 5 DIFFERENT queries that each include a max price —
+    # not 5 tries of the same one — so it gets five scenarios of its own.
+    {
+        "name": "price ceiling — silk slip dress",
+        "query": "silk slip dress in midi length under $40",
+        "wardrobe": "example",
+        "criterion": 5,
+    },
+    {
+        "name": "price ceiling — platform sneakers",
+        "query": "platform sneakers under $60",
+        "wardrobe": "example",
+        "criterion": 5,
+    },
+    {
+        "name": "price ceiling — track jacket",
+        "query": "90s track jacket under $45",
+        "wardrobe": "example",
+        "criterion": 5,
+    },
+    {
+        "name": "price ceiling — leather jacket",
+        "query": "leather jacket under $100",
+        "wardrobe": "example",
+        "criterion": 5,
+    },
+    {
+        "name": "price ceiling — band tee",
+        "query": "band tee under $20",
+        "wardrobe": "example",
+        "criterion": 5,
+    },
 ]
 
 WARDROBES = ("example", "empty")
