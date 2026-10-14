@@ -157,13 +157,21 @@ def run_agent(query: str, wardrobe: dict) -> dict:
             parsed = session["parsed"]
             tool_inputs = {"description": parsed["description"], "size": parsed["size"], "max_price": parsed["max_price"]}
             session["search_results"] = call_tool("search_listings", tool_inputs)
-            trace.step("search_listings (via MCP)", inputs=tool_inputs, returned=session["search_results"])
+            trace.step(
+                "search_listings (via MCP)",
+                inputs=f"description={tool_inputs['description']!r}, size={tool_inputs['size']!r}, max_price={tool_inputs['max_price']!r}",
+                returned=session["search_results"],
+            )
             searched = True
             # THE BRANCH: nothing came back, so say what to change and stop.
             if not session["search_results"]:
                 session["error"] = _empty_search_message(parsed)
-                trace.step("empty search", inputs=parsed, returned=session["error"],
-                           note="branch: empty, stopping")
+                trace.step(
+                    "empty search",
+                    inputs=f"description={parsed['description']!r}, size={parsed['size']!r}, max_price={parsed['max_price']!r}",
+                    returned=session["error"],
+                    note="branch: empty, stopping",
+                )
                 return session
 
         elif session["selected_item"] is None:
@@ -179,9 +187,12 @@ def run_agent(query: str, wardrobe: dict) -> dict:
             session["fit_card"] = create_fit_card(
                 session["outfit_suggestion"], session["selected_item"]
             )
-            trace.step("create_fit_card",
-                       inputs={"outfit": session["outfit_suggestion"], "item": session["selected_item"]},
-                       returned=session["fit_card"])
+            item = session["selected_item"]
+            trace.step(
+                "create_fit_card",
+                inputs=f"item={item.get('title')!r} (${item.get('price')}), outfit={session['outfit_suggestion']!r}",
+                returned=session["fit_card"],
+            )
 
         else:
             return session
